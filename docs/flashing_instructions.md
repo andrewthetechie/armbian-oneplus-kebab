@@ -48,30 +48,28 @@ Now let’s continue partitioning:
 Here the size of `userdata` can be decided by yourself. In this guide we take 30G as the example.
 
 ```bash
-(parted) resizepart 34
+(parted) resizepart 28
 # 34 is the partition number for userdata
-End? [122GB]? 32GB
+End? [253GB]? 22GB
 ```
 
-32GB is the End value for the new userdata partition.
-
-Since the starting point for userdata is 2048MB = 2GB, the new size would be 32G - 2G = 30G.
+22GB is the End value for the new userdata partition to set it to 10gb in size.
 
 Then create the linux and esp partitions:
 
 ```bash
 # esp partition for booting
-(parted) mkpart esp fat32 32GB 32.5GB
+(parted) mkpart esp fat32 22GB 22.5GB
 # set the esp partition as `EFI system partition type`
-# replace 35 with the count of your esp partition if different
-(parted) set 35 esp on
+# replace 29 with the count of your esp partition if different
+(parted) set 29 esp on
 # partition for installing Linux
-(parted) mkpart linux ext4 32.5GB 100%
+(parted) mkpart linux ext4 22.5GB 100%
 # print your partition table and confirm everything looks right
 (parted) print
 # Troubleshooting, may not be required but name the linux partition
-# replace 36 with the partition number of your linux partition if different
-(parted) name 36 linux
+# replace 30 with the partition number of your linux partition if different
+(parted) name 30 linux
 # print your partition table and confirm everything looks right, should see a new esp partition and one named linux
 (parted) print
 (parted) quit
@@ -207,7 +205,7 @@ If everything is correct, you should see output from `sudo qbootctl` like this:
 sudo qbootctl
 Current slot: _b
 SLOT _a:
-        Active      : 0
+---------        Active      : 0
         Successful  : 1
         Bootable    : 1
 SLOT _b:
@@ -218,36 +216,8 @@ SLOT _b:
 
 slot b is where armbian's kernel is flashed, and `Active`, `Successful` and `Bootable` are all 1.
 
-### Toggle USB role (Type-C port as host)
+### Type-C port (USB networking only)
 
-The Type-C port is in **device** mode by default (for USB gadget/RNDIS networking). To use it as a **host** port (keyboard, storage, etc.) you need a kernel built with USB OTG role switch enabled.
+The Type-C port is fixed in **peripheral** (device) mode (`dr_mode = "peripheral"`) so that USB gadget/RNDIS networking works reliably on first boot. You connect to the device over USB (e.g. `ssh root@172.16.42.1`) using this port.
 
-**Why the manual toggle often fails:** On older images the device tree fixed the port as `dr_mode = "peripheral"`, so writing `host` to `/sys/kernel/debug/usb/a600000.usb/mode` has no effect and the mode stays `device`. USB devices plugged into the Type-C port then do not appear in `lsusb` or `dmesg`.
-
-**Fix:** Use an image built with the **USB OTG role switch** device tree patch (e.g. `0011-arm64-dts-qcom-sm8250-oneplus-kebab-Enable-USB-OTG-role-switch.patch`). That patch sets `dr_mode = "otg"` and adds the Type-C connector so the port can switch roles.
-
-**After rebuilding with the OTG patch:**
-
-1. Stop the gadget so the port is free to switch:
-
-   ```bash
-   sudo systemctl stop usbgadget-rndis.service
-   ```
-
-2. The role may switch automatically when you plug in a USB device (host/peripheral is chosen by the Type-C/PD subsystem). If not, try forcing host via the role switch interface:
-
-   ```bash
-   # List role switch devices; the Type-C port’s role is under one of these
-   ls /sys/class/usb_role/
-   # Example: force host (path can vary)
-   echo host | sudo tee /sys/class/usb_role/*/role
-   ```
-
-3. Plug in your USB device and check:
-
-   ```bash
-   lsusb -t
-   dmesg | tail -20
-   ```
-
-**If you cannot rebuild:** On an image without the OTG patch, the Type-C port will not operate as a host; use a different USB host port if your device has one (e.g. `usb_2` on Kebab).
+**USB host on the Type-C port is not supported** in the current image—the port does not switch to host mode. If the board exposes a second USB port (e.g. `usb_2`), that one may be configured as host; otherwise use networking (Wi‑Fi/Ethernet) or a different setup for USB devices.
