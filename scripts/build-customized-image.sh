@@ -76,6 +76,12 @@ fi
 [[ -f "$ROOTFS_IMAGE" ]] || { echo "Error: Rootfs image not found: $ROOTFS_IMAGE" >&2; exit 1; }
 ROOTFS_IMAGE="$(realpath "$ROOTFS_IMAGE")"
 
+# Reject checksum files or tiny files (script needs a real disk image)
+if [[ "$(basename "$ROOTFS_IMAGE")" == *.sha ]] || [[ "$(stat -c%s "$ROOTFS_IMAGE" 2>/dev/null || stat -f%z "$ROOTFS_IMAGE" 2>/dev/null)" -lt 512 ]]; then
+	echo "Error: $ROOTFS_IMAGE does not look like a rootfs image (checksum file or too small). Use a *.rootfs.img file, not *.rootfs.img.sha." >&2
+	exit 1
+fi
+
 CUSTOMIZER="${SCRIPT_DIR}/customize-image.sh"
 [[ -x "$CUSTOMIZER" ]] || { echo "Error: Customizer script not found or not executable: $CUSTOMIZER" >&2; exit 1; }
 

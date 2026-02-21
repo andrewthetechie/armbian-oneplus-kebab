@@ -1,0 +1,18 @@
+From: Armbian <builder@armbian.com>
+Subject: [PATCH] arm64: dts: qcom: Makefile: add sm8250-oneplus-kebab-usb-host.dtb
+
+Signed-off-by: Armbian <builder@armbian.com>
+---
+ arch/arm64/boot/dts/qcom/Makefile | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
+index 305a66a7b991..a1b2c3d4e5f6 100644
+--- a/arch/arm64/boot/dts/qcom/Makefile
++++ b/arch/arm64/boot/dts/qcom/Makefile
+@@ -277,6 +277,7 @@ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-oneplus-instantnoodlep.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-oneplus-kebab.dtb
++dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-oneplus-kebab-usb-host.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-samsung-r8q.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-samsung-x1q.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sm8250-sony-xperia-edo-pdx203.dtb

@@ -1,0 +1,105 @@
+From: Armbian <builder@armbian.com>
+Subject: [PATCH] arm64: dts: qcom: sm8250-oneplus-kebab-usb-host: add DTS (Type-C host)
+
+Add device tree for OnePlus 8T (kebab) with Type-C in USB host mode.
+Switch usb_1_dwc3 to OTG with usb-role-switch so the qcom_pmic_typec
+driver can register and manage CC detection, VBUS, and the USB mux.
+Remove the base kebab USB2-only restrictions and enable the USB3 QMP PHY
+so SuperSpeed devices enumerate through USB-C hubs.
+
+Signed-off-by: Armbian <builder@armbian.com>
+---
+ arch/arm64/boot/dts/qcom/sm8250-oneplus-kebab-usb-host.dts | 84 +++++++++++++++++++
+ 1 file changed, 84 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/qcom/sm8250-oneplus-kebab-usb-host.dts
+
+diff --git a/arch/arm64/boot/dts/qcom/sm8250-oneplus-kebab-usb-host.dts b/arch/arm64/boot/dts/qcom/sm8250-oneplus-kebab-usb-host.dts
+new file mode 100644
+index 000000000000..f0e1d2c3b4a5
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/sm8250-oneplus-kebab-usb-host.dts
+@@ -0,0 +1,84 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * OnePlus 8T (kebab) with Type-C port in USB host mode.
++ * No USB gadget/RNDIS; use Wi-Fi or Ethernet for first login.
++ *
++ * Overrides the base kebab DTS to:
++ *  - switch DWC3 to OTG + usb-role-switch (required by qcom_pmic_typec)
++ *  - remove USB2-only restrictions and enable the USB3 QMP PHY
++ *  - enable pm8150b_typec and pm8150b_vbus for CC detection and VBUS output
++ */
++/dts-v1/;
++
++#include <dt-bindings/phy/phy-qcom-qmp.h>
++#include <dt-bindings/usb/pd.h>
++#include "sm8250-oneplus-kebab.dts"
++
++/ {
++	model = "OnePlus 8T (kebab, USB host)";
++};
++
++&usb_1 {
++	/delete-property/ qcom,select-utmi-as-pipe-clk;
++};
++
++&usb_1_dwc3 {
++	/delete-property/ maximum-speed;
++	dr_mode = "otg";
++	usb-role-switch;
++	phys = <&usb_1_hsphy>, <&usb_1_qmpphy QMP_USB43DP_USB3_PHY>;
++	phy-names = "usb2-phy", "usb3-phy";
++};
++
++&usb_1_dwc3_hs_out {
++	remote-endpoint = <&pm8150b_hs_in>;
++};
++
++&usb_1_qmpphy {
++	status = "okay";
++	vdda-phy-supply = <&vreg_l9a_1p2>;
++	vdda-pll-supply = <&vreg_l18a_0p92>;
++};
++
++&pm8150b_typec {
++	vdd-pdphy-supply = <&vreg_l2a_3p1>;
++	status = "okay";
++
++	connector {
++		compatible = "usb-c-connector";
++
++		op-sink-microwatt = <10000000>;
++		power-role = "dual";
++		data-role = "dual";
++		self-powered;
++
++		source-pdos = <PDO_FIXED(5000, 3000,
++					 PDO_FIXED_DUAL_ROLE |
++					 PDO_FIXED_USB_COMM |
++					 PDO_FIXED_DATA_SWAP)>;
++
++		sink-pdos = <PDO_FIXED(5000, 3000,
++				       PDO_FIXED_DUAL_ROLE |
++				       PDO_FIXED_USB_COMM |
++				       PDO_FIXED_DATA_SWAP)>;
++
++		ports {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			port@0 {
++				reg = <0>;
++
++				pm8150b_hs_in: endpoint {
++					remote-endpoint = <&usb_1_dwc3_hs_out>;
++				};
++			};
++		};
++	};
++};
++
++&pm8150b_vbus {
++	regulator-min-microamp = <500000>;
++	regulator-max-microamp = <3000000>;
++	status = "okay";
++};
