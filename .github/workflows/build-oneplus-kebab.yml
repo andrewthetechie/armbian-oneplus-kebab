@@ -38,19 +38,26 @@ jobs:
         run: |
           docker run --rm \
             --privileged \
+            --entrypoint "" \
             -v "${{ github.workspace }}":/armbian \
             -w /armbian \
             -e ARMBIAN_RUNNING_IN_CONTAINER=yes \
             -e DEBIAN_FRONTEND=noninteractive \
+            -e CI=true \
+            -e GITHUB_ACTIONS=true \
+            -e GITHUB_WORKSPACE=/armbian \
             ${{ env.ARMBIAN_IMAGE }} \
-            ./compile.sh build \
-              BOARD=${{ matrix.board }} \
-              BRANCH=current \
-              BUILD_DESKTOP=no \
-              BUILD_MINIMAL=no \
-              KERNEL_CONFIGURE=no \
-              KERNEL_GIT=shallow \
-              RELEASE=noble
+            /bin/bash -c '
+              git config --global --add safe.directory /armbian
+              ./compile.sh build \
+                BOARD=${{ matrix.board }} \
+                BRANCH=current \
+                BUILD_DESKTOP=no \
+                BUILD_MINIMAL=no \
+                KERNEL_CONFIGURE=no \
+                KERNEL_GIT=shallow \
+                RELEASE=noble
+            '
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
