@@ -41,7 +41,7 @@ cleanup() {
 
 # Parse YAML and emit shell variables (sourced by caller).
 # Requires python3 and PyYAML (python3-yaml). Keys: root_password, user_name, user_password,
-# user_shell, user_sudo, locale, timezone, wifi_ssid, wifi_password, ssh_keys_root, ssh_keys_user, extra_packages, run_commands.
+# user_shell, user_sudo, locale, timezone, wifi_ssid, wifi_password, wifi_address, wifi_gateway, wifi_dns, ssh_keys_root, ssh_keys_user, extra_packages, run_commands.
 yaml_to_shell() {
 	local yaml_file="$1"
 	if [[ ! -f "$yaml_file" ]]; then
@@ -63,9 +63,17 @@ def esc(s):
     s = str(s).replace("\\", "\\\\").replace("'", "'\\''")
     return s
 
-for k in ("root_password", "user_name", "user_password", "user_shell", "user_sudo", "locale", "timezone", "wifi_ssid", "wifi_password"):
+for k in ("root_password", "user_name", "user_password", "user_shell", "user_sudo", "locale", "timezone", "wifi_ssid", "wifi_password", "wifi_address", "wifi_gateway"):
     v = d.get(k)
     print("%s='%s'" % (k, esc(v) if v is not None else ""))
+v = d.get("wifi_dns")
+if v is None:
+    v = ""
+elif isinstance(v, list):
+    v = ";".join(str(x) for x in v if x is not None)
+else:
+    v = str(v)
+print("wifi_dns='%s'" % esc(v))
 
 for k in ("ssh_keys_root", "ssh_keys_user", "extra_packages", "run_commands"):
     v = d.get(k)
@@ -177,12 +185,17 @@ fi
 if [[ -n "$wifi_ssid" ]]; then
 	NM_CONN_DIR="$ROOT_MNT/etc/NetworkManager/system-connections"
 	mkdir -p "$NM_CONN_DIR"
-	# Pass password via env so shell does not expand ! (history) or other chars in the password
-	WIFI_SSID="$wifi_ssid" WIFI_PASSWORD="$wifi_password" python3 - "$NM_CONN_DIR" <<'PYWIFI'
+	# Pass password and optional static IP via env so shell does not expand ! (history) or other chars
+	WIFI_SSID="$wifi_ssid" WIFI_PASSWORD="$wifi_password" \
+	WIFI_ADDRESS="$wifi_address" WIFI_GATEWAY="$wifi_gateway" WIFI_DNS="$wifi_dns" \
+	python3 - "$NM_CONN_DIR" <<'PYWIFI'
 import sys, os
 conn_dir = sys.argv[1]
 ssid = (os.environ.get("WIFI_SSID") or "").strip()
 pwd = (os.environ.get("WIFI_PASSWORD") or "").strip()
+addr = (os.environ.get("WIFI_ADDRESS") or "").strip()
+gateway = (os.environ.get("WIFI_GATEWAY") or "").strip()
+dns = (os.environ.get("WIFI_DNS") or "").strip()
 # SSID: write unquoted when possible so NM passes it to wpa_supplicant correctly (quoted SSID was seen as literal "Name")
 def ssid_line(s):
     if not s: return "ssid="
@@ -195,8 +208,17 @@ def ssid_line(s):
 def psk_line(s):
     if s is None: s = ""
     s = str(s)
-    # Keyfile unquoted value = rest of line; only newline would break the format
     return "psk=" + s.replace("\n", " ").replace("\r", " ")
+# IPv4: static (address/gateway/dns) or DHCP
+def ipv4_section(addr, gateway, dns):
+    if not addr:
+        return "[ipv4]\nmethod=auto\n\n"
+    lines = ["[ipv4]", "method=manual", "address1=" + addr]
+    if gateway:
+        lines.append("gateway=" + gateway)
+    if dns:
+        lines.append("dns=" + dns.replace(",", ";"))
+    return "\n".join(lines) + "\n\n"
 content = """[connection]
 id=armbian-wifi
 type=wifi
@@ -208,12 +230,7 @@ mode=infrastructure
 
 [wifi-security]
 key-mgmt=wpa-psk
-""" + psk_line(pwd) + """
-
-[ipv4]
-method=auto
-
-[ipv6]
+""" + psk_line(pwd) + "\n" + ipv4_section(addr, gateway, dns) + """[ipv6]
 method=auto
 """
 path = os.path.join(conn_dir, "armbian-wifi.nmconnection")
@@ -224,6 +241,14 @@ PYWIFI
 	chroot "$ROOT_MNT" systemctl enable NetworkManager.service 2>/dev/null || true
 	echo "Set WiFi: SSID $wifi_ssid (connects on first boot if NetworkManager is present)"
 fi
+
+# NetworkManager: leave USB gadget (usb0) unmanaged so it keeps its config; all other interfaces get DHCP by default
+mkdir -p "$ROOT_MNT/etc/NetworkManager/conf.d"
+cat > "$ROOT_MNT/etc/NetworkManager/conf.d/10-armbian-usb-gadget-unmanaged.conf" <<'NMUNMANAGED'
+# Added by Armbian customizer: do not manage usb0 (USB gadget/RNDIS). Other interfaces (e.g. USB ethernet) get DHCP automatically.
+[device]
+unmanaged-devices=interface-name:usb0
+NMUNMANAGED
 
 # Root password
 if [[ -n "$root_password" ]]; then

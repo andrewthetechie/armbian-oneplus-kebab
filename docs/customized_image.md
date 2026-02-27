@@ -47,6 +47,9 @@ Path: `userpatches/customized-image.yaml` (or any path you pass to the script).
 | `timezone` | Timezone name (e.g. `America/Chicago` for US Central). If set, writes /etc/timezone and /etc/localtime. |
 | `wifi_ssid` | WiFi network name (SSID). If set, a NetworkManager connection is created so the system connects on first boot. Requires NetworkManager in the image (default for non-minimal Armbian). |
 | `wifi_password` | WiFi password (WPA-PSK). Use together with `wifi_ssid`. |
+| `wifi_address` | Optional. Static IPv4 for WiFi (e.g. `192.168.1.100/24`). Omit for DHCP. |
+| `wifi_gateway` | Optional. Gateway for WiFi static IP (e.g. `192.168.1.1`). |
+| `wifi_dns` | Optional. DNS servers for WiFi static IP: string with semicolon-separated IPs, or YAML list. |
 | `extra_packages` | List of package names to install with `apt-get install` (customizer has network). |
 | `run_commands` | List of shell commands to run inside the chroot (e.g. enable services, edit configs). |
 
@@ -72,6 +75,8 @@ run_commands:
 ```
 
 Paths in `ssh_keys_root` / `ssh_keys_user` can be relative to the directory containing the config file or absolute. On Linux, `~` is expanded to your home directory. On macOS (Docker), use paths relative to the config file or put key files under `userpatches/` so they are available inside the container.
+
+**Networking:** The customizer adds a NetworkManager drop-in so the USB gadget interface (`usb0`) is unmanaged and keeps its existing config. Any other interface (e.g. a USB ethernet adapter) is managed by NetworkManager and gets DHCP automatically when connected, so networking is as automatic as possible without a local console.
 
 ## Scripts
 

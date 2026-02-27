@@ -1,0 +1,92 @@
+# Build and publish Armbian for OnePlus Kebab (8T).
+# - Runs on: push to main, pull_request targeting main, and release published.
+# - Two boards: oneplus-kebab, oneplus-kebab-usb-host.
+# - On release: uploads images and .sha files as release assets.
+
+name: Build OnePlus Kebab Armbian
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+env:
+  ARMBIAN_IMAGE: ghcr.io/armbian/docker-armbian-build:armbian-ubuntu-noble-latest
+
+jobs:
+  build:
+    name: Build ${{ matrix.board }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        board: [oneplus-kebab, oneplus-kebab-usb-host]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Pull Armbian build image
+        run: docker pull ${{ env.ARMBIAN_IMAGE }}
+
+      - name: Build Armbian (${{ matrix.board }})
+        run: |
+          docker run --rm \
+            --privileged \
+            --entrypoint "" \
+            -v "${{ github.workspace }}":/armbian \
+            -w /armbian \
+            -e ARMBIAN_RUNNING_IN_CONTAINER=yes \
+            -e DEBIAN_FRONTEND=noninteractive \
+            -e CI=true \
+            -e GITHUB_ACTIONS=true \
+            -e GITHUB_WORKSPACE=/armbian \
+            ${{ env.ARMBIAN_IMAGE }} \
+            /bin/bash -c '
+              git config --global --add safe.directory /armbian
+              ./compile.sh build \
+                BOARD=${{ matrix.board }} \
+                BRANCH=current \
+                BUILD_DESKTOP=no \
+                BUILD_MINIMAL=no \
+                KERNEL_CONFIGURE=no \
+                KERNEL_GIT=shallow \
+                RELEASE=noble
+            '
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-${{ matrix.board }}
+          path: output/images/
+          if-no-files-found: error
+
+  release-assets:
+    name: Attach artifacts to release
+    runs-on: ubuntu-24.04
+    needs: build
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+    steps:
+      - name: Download all board artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: List artifacts for upload
+        run: |
+          echo "Artifacts to attach to release:"
+          find artifacts -type f
+
+      - name: Upload to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

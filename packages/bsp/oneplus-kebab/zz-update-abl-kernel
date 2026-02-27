@@ -3,7 +3,8 @@ set -ex
 new_rootfs_image_uuid=$(sed -e 's/^.*root=UUID=//' -e 's/ .*$//' < /proc/cmdline)
 gzip -c /boot/vmlinuz-*-sm8250 > /tmp/Image.gz
 
-cat /tmp/Image.gz /usr/lib/linux-image-*-sm8250/qcom/sm8250-oneplus-kebab.dtb > /tmp/Image.gz-dtb
+abl_dtb_name=$(cat /etc/armbian-abl-dtb 2>/dev/null || echo "sm8250-oneplus-kebab")
+cat /tmp/Image.gz /usr/lib/linux-image-*-sm8250/qcom/${abl_dtb_name}.dtb > /tmp/Image.gz-dtb
 
 source /boot/armbianEnv.txt
 /usr/bin/mkbootimg \

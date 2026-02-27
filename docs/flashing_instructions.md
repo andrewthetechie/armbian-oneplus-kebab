@@ -83,6 +83,14 @@ Now `userdata` resizing is done. After reboot to android you will get into a eme
 
 Follow directions from the [README](../README.md) to build your images. This repo does not offer pre-built images.
 
+**Building the USB host image:** To build an image with the Type-C port in host mode (no USB gadget networking), use `BOARD=oneplus-kebab-usb-host`:
+
+```bash
+./compile.sh build BOARD=oneplus-kebab-usb-host BUILD_DESKTOP=no BUILD_MINIMAL=no KERNEL_CONFIGURE=no RELEASE=noble
+```
+
+The output boot image will be named `.boot_sm8250-oneplus-kebab-usb-host.img` instead of `.boot_sm8250-oneplus-kebab.img`. Flash it the same way (e.g. to `boot_b`); only the DTB and absence of USB gadget differ. Use Wi‑Fi or Ethernet for first login (e.g. configure `wifi_ssid` and `wifi_password` in your image customization yaml before first boot).
+
 ### Download and flash disabled vbmeta.img
 
 This device requires a disabled VBMeta image to be flashed prior to booting or flashing anything custom.
@@ -175,13 +183,15 @@ fastboot reboot
 
 ### First login
 
-After booting into armbian, you have to connect typec port to the usb port of a computer and ssh into the system from usb gadget network:
+**Default image (oneplus-kebab):** After booting into Armbian, connect the Type-C port to a computer and SSH over the USB gadget network:
 
 ```bash
 ssh root@172.16.42.1
 ```
 
-Default user and password is `root/1234`, you will set new user and password at first login.
+**USB host image (oneplus-kebab-usb-host):** The Type-C port is in host mode only; there is no USB gadget. Use Wi‑Fi or Ethernet for first login. Configure Wi‑Fi before first boot (e.g. via a customized image and `wifi_ssid` / `wifi_password` in your image yaml) so the device joins your network on boot.
+
+Default user and password is `root/1234`; you will set a new password at first login.
 
 ### Check your A/B slot
 
@@ -216,8 +226,16 @@ SLOT _b:
 
 slot b is where armbian's kernel is flashed, and `Active`, `Successful` and `Bootable` are all 1.
 
-### Type-C port (USB networking only)
+### Type-C port: default vs USB host image
 
-The Type-C port is fixed in **peripheral** (device) mode (`dr_mode = "peripheral"`) so that USB gadget/RNDIS networking works reliably on first boot. You connect to the device over USB (e.g. `ssh root@172.16.42.1`) using this port.
+**Default image (oneplus-kebab):** The Type-C port is fixed in **peripheral** (device) mode (`dr_mode = "peripheral"`) so that USB gadget/RNDIS networking works on first boot. You connect to the device over USB (e.g. `ssh root@172.16.42.1`) using this port. USB host on the Type-C port is not supported in this image.
 
-**USB host on the Type-C port is not supported** in the current image—the port does not switch to host mode. If the board exposes a second USB port (e.g. `usb_2`), that one may be configured as host; otherwise use networking (Wi‑Fi/Ethernet) or a different setup for USB devices.
+**USB host image (oneplus-kebab-usb-host):** The Type-C port is in **host** mode only. There is no USB gadget/RNDIS; use Wi‑Fi or Ethernet for access. Build with `BOARD=oneplus-kebab-usb-host` (see below). First login must be over the network; configure Wi‑Fi (e.g. in your image customization yaml) before first boot.
+
+The board also has a second USB controller (`usb_2`) configured as host in both images.
+
+**Wi‑Fi on USB host image:** The image runs `qca6390-wlan-enable.service` at boot to drive the WLAN enable GPIO and rescan PCI; the service waits until a `wlan*` interface appears (or a short timeout) so that NetworkManager sees WiFi when it starts. If Wi‑Fi still does not connect, ensure your image customization sets `wifi_ssid` and `wifi_password` (or use Ethernet). Check `journalctl -u qca6390-wlan-enable.service` and `ip link` after boot if you have another way to access the device.
+
+**Recovery (no network access on USB host image):** If you flashed the USB host image and Wi‑Fi did not connect, you have no USB networking to fall back on. To get access again, reflash the **default** (peripheral) image so that USB gadget works, then SSH over USB (`ssh root@172.16.42.1`). After fixing your Wi‑Fi config or re‑customizing the rootfs with the correct `wifi_ssid` / `wifi_password`, you can re-flash the USB host boot image (same rootfs is fine) and reboot.
+
+**USB host not seeing devices:** If the Type-C port shows root hubs in `lsusb` but plugged devices do not appear, the port may need Type-C and VBUS enabled in the DTS (see [usb_host_investigation.md](usb_host_investigation.md)).

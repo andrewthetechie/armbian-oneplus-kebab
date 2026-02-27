@@ -31,9 +31,18 @@ if [[ ! -c "$dev" ]]; then
 	exit 1
 fi
 
-# Hold both lines high (gpioset runs until killed). Rescan PCI after a short delay.
-gpioset "$dev" "${WLAN_LINE}=1" "${BT_LINE}=1" &
-pid=$!
-sleep 0.5
+# Hold both lines high (gpioset runs until reboot). Rescan PCI so WLAN/BT appear.
+nohup gpioset "$dev" "${WLAN_LINE}=1" "${BT_LINE}=1" </dev/null >/dev/null 2>&1 &
+sleep 1
 echo 1 > /sys/bus/pci/rescan 2>/dev/null || true
-wait $pid
+
+# Wait for a wireless interface to appear (qca6390 shows as wlan0) so NetworkManager sees it when it starts.
+# Without this, NM may start before the PCI device is bound and never see WiFi on USB-host images.
+for i in $(seq 1 25); do
+	for iface in /sys/class/net/wlan*; do
+		[[ -e "$iface" ]] && exit 0
+	done
+	sleep 0.2
+done
+# Timeout: exit anyway so boot is not stuck; WiFi may still appear shortly after.
+exit 0
